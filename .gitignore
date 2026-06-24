@@ -1,0 +1,35 @@
+# ==========================================
+# C++ Compiler Outputs & Binaries
+# ==========================================
+*.exe
+*.out
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+
+# ==========================================
+# Development Build Directories
+# ==========================================
+build/
+bin/
+obj/
+
+# ==========================================
+# IDE and System Specific Files
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# ==========================================
+# Local Project Data & Mock Assets
+# ==========================================
+# Ignore large raw image files or video assets inside data
+data/*
+# Prevent ignoring the folder structure itself
+!data/.gitkeep
