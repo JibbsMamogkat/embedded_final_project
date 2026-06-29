@@ -3,35 +3,36 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "roi_cropper.h"
+#include "image_data.h" // Links your raw color dataset array
 
-// Allocation arrays representing our image target grids
-static uint8_t mock_full_frame[320 * 240]; // Mocking a standard QVGA resolution array frame
-static uint8_t output_patch[64 * 64];      // Target model input tensor buffer
+// Allocate a 3-channel RGB target array buffer (64 * 64 * 3 = 12,288 bytes)
+static uint8_t output_patch_rgb[64 * 64 * 3];
 
 extern "C" void app_main(void) {
-    // Fill the mock frame with simple sequential tracking values
-    for (int i = 0; i < (320 * 240); ++i) {
-        mock_full_frame[i] = (uint8_t)(i % 256);
-    }
+    ESP_LOGI("PIPELINE", "Starting Hardware-in-the-Loop Static Emulation Test...");
+    ESP_LOGI("PIPELINE", "Loaded Target Frame Dimensions: %dx%d (RGB Channels)", OCCUPIED_WIDTH, OCCUPIED_HEIGHT);
 
-    // Bounding Box Test Coordinates (Simulating a detected vehicle box layout)
-    int roi_x = 40;
-    int roi_y = 30;
-    int roi_w = 120;
-    int roi_h = 90;
+    // Target the entire boundaries of the pre-cropped Davao space photo
+    int roi_x = 0;
+    int roi_y = 0;
+    int roi_w = OCCUPIED_WIDTH;
+    int roi_h = OCCUPIED_HEIGHT;
 
-    ESP_LOGI("PIPELINE", "Executing spatial downscale to 64x64 tensor matrix...");
+    ESP_LOGI("PIPELINE", "Executing 3-channel spatial downscale to 64x64x3 tensor matrix...");
 
-    // Run the extraction process
-    extract_roi_patch(mock_full_frame, 320, roi_x, roi_y, roi_w, roi_h, output_patch);
+    // Run processing math directly over the real davao array asset memory location
+    extract_roi_patch(davao_occupied_frame, OCCUPIED_WIDTH, roi_x, roi_y, roi_w, roi_h, output_patch_rgb);
 
-    ESP_LOGI("PIPELINE", "Array processing pass completed successfully!");
+    ESP_LOGI("PIPELINE", "Array matrix operation completed successfully!");
     
-    // Print out a tiny 4x4 matrix sample corner of our output array to check values
-    printf("Sample Array Output (Top Left Corner):\n");
+    // Print a 4x4 matrix block showing the true R,G,B integer triplets per pixel coordinate
+    printf("\nSample RGB Output Matrix (Top-Left Pixel Blocks):\n");
     for (int y = 0; y < 4; ++y) {
         for (int x = 0; x < 4; ++x) {
-            printf("%03d ", output_patch[y * 64 + x]);
+            int idx = (y * 64 + x) * 3;
+            printf("[%03d,%03d,%03d] ", output_patch_rgb[idx + 0],  // Red
+                                        output_patch_rgb[idx + 1],  // Green
+                                        output_patch_rgb[idx + 2]); // Blue
         }
         printf("\n");
     }
