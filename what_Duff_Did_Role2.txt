@@ -1,0 +1,43 @@
+======================================================
+DEVELOPMENT DIARY: EDGE ML PIPELINE - SPRINT 1
+Role: Role 2 (Staging & Telemetry Engineer)
+July 01, 2026.
+======================================================
+
+Milestone Objective: 
+Establish the bare-metal FreeRTOS architecture, stage the INT8 machine learning assets in flash memory, and configure the UART telemetry loop.
+
+Tasks Completed:
+1. Model Serialization (model_data.h):
+   - Successfully bypassed OS toolchain limitations by deploying a custom Python serialization script.
+   - Converted the raw 8-bit quantized MobileNetV2 (.tflite) model into a static C++ header array (2.58 MB) for direct flash memory integration.
+
+2. Visual Data Staging (image_data.h):
+   - Developed a Python preprocessing script (convert_image.py) using OpenCV.
+   - Downscaled a physical test frame to VGA bounds (640x480), collapsed the color space to single-channel grayscale, and flattened it into a 1D static byte array to mock the OV2640 camera DMA stream.
+
+3. RTOS Orchestration (main.cpp):
+   - Scaffolded the core execution engine utilizing FreeRTOS tasks (xTaskCreatePinnedToCore) to prevent hardware Watchdog Timer (WDT) triggers.
+   - Built the iteration loop mapping to three test parking slot coordinates.
+   - Established the UART telemetry stream using ESP_LOGI to broadcast mock occupancy states and classification confidences.
+
+4. Interface Contract Validation (roi_cropper.cpp):
+   - Implemented a temporary dummy function for `extract_roi_patch` to satisfy the C++ compiler's linking requirements. 
+   - The architecture is now strictly prepared for Role 1 to inject the spatial coordinate transformation math.
+
+Next Steps (Handoff to Role 1):
+- Role 1 to pull the repository and flash the initial codebase to the physical ESP32-S3 hardware.
+- Role 1 to verify UART serial output is stable and replace the dummy cropper function with live array slicing logic.
+
+
+NEXT STEPS (IF IT works):
+What is Left for Role 2: The Live Hardware Phase
+Once your groupmate finishes the spatial cropping math (Role 1) and proves it works inside your loop, the training wheels come off. You will need to return to main.cpp to wire up the actual physical realities of the edge device.
+
+There are two major tasks remaining for you later in the sprint:
+
+1. Integrating the Live OV2640 Camera
+Right now, your loop reads from image_data.h (the static test frame). In the future, you will delete that file. You will need to write the ESP-IDF driver code that initializes the physical OV2640 camera, captures a live frame of the parking lot, and streams those pixels directly into the microcontroller's RAM via Direct Memory Access (DMA) for real-time processing.
+
+2. Writing the TensorFlow Lite Micro Interpreter
+This is the heaviest lift. You will need to replace that mock is_occupied toggle with the actual C++ TensorFlow Lite Micro API. You will write the code that points the TFLite interpreter at your model_data.h array, allocates a "Tensor Arena" in memory, feeds the cropped 64x64 parking slot image into the neural network, and extracts the real mathematical confidence score.

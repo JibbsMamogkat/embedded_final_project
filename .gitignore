@@ -33,3 +33,20 @@ Thumbs.db
 data/*
 # Prevent ignoring the folder structure itself
 !data/.gitkeep
+
+
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+venv/
+env/
+__pycache__/
+*.pyc
+
+
+# ==========================================
+# ESP-IDF Specific
+# ==========================================
+sdkconfig.old
+# Note: DO NOT ignore 'sdkconfig' itself, as both you and your partner 
+# need the exact same compiler configuration state.
