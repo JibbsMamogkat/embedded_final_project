@@ -41,3 +41,6 @@ data/*
 !data/.gitkeep
 sdkconfig.old
 .clangd/
+
+
+repomix-output.xml
