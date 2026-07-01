@@ -18,6 +18,12 @@ bin/
 obj/
 
 # ==========================================
+# ESP-IDF Component Manager Cache
+# ==========================================
+managed_components/
+dependencies.lock
+
+# ==========================================
 # IDE and System Specific Files
 # ==========================================
 .vscode/
