@@ -41,3 +41,42 @@ Right now, your loop reads from image_data.h (the static test frame). In the fut
 
 2. Writing the TensorFlow Lite Micro Interpreter
 This is the heaviest lift. You will need to replace that mock is_occupied toggle with the actual C++ TensorFlow Lite Micro API. You will write the code that points the TFLite interpreter at your model_data.h array, allocates a "Tensor Arena" in memory, feeds the cropped 64x64 parking slot image into the neural network, and extracts the real mathematical confidence score.
+
+
+======================================================
+DEVELOPMENT DIARY: EDGE ML PIPELINE - SPRINT 1.5
+Role: Role 1 (Spatial Layout & Cloud Integration)
+Date: July 03, 2026.
+======================================================
+
+Milestone Objective: 
+Secure the C++ telemetry formatting logic and establish the Cloud-to-Edge remote calibration pipeline for the MVP presentation.
+
+Tasks Completed (Duff's Branch):
+1. Telemetry Payload Builder (payload_builder.h):
+   - Engineered the C++ logic to wrap the inference pipeline in a dynamic `for` loop based on active ROI slots.
+   - Built a memory-safe JSON formatter using `snprintf` to compile the telemetry string (e.g., {"active_slots": 3, "slots": [1,0,1]}) with zero dynamic memory allocation overhead.
+   - Added a hardcoded fallback coordinate function to ensure the system survives network drops during the Tuesday presentation.
+
+2. Cloud Calibration Dashboard (cloud_tools/index.html):
+   - Created a standalone HTML5/JS dashboard mimicking the Phase 4 Capstone Admin Panel.
+   - Successfully implemented a canvas drawing tool to dynamically map Region of Interest (ROI) bounding boxes over the SM Ecoland test frame.
+   - Integrated the Firebase JS SDK to sync the generated coordinate array (`roi_config`) directly to a live Firebase Realtime Database.
+   - Note: Bypassed Cloud Storage image uploading for the MVP to avoid credit card billing blockers; image is served locally to the dashboard while RTDB handles the live coordinate sync.
+
+======================================================
+NEXT STEPS FOR JAMEEL (The Integration Weekend)
+======================================================
+Duff has pushed `payload_builder.h` and the cloud testing tools to GitHub. Jameel, your goal this weekend is to wire the physical ESP32-S3 to the cloud and test the full loop for Tuesday's presentation.
+
+Jameel's Core Tasks:
+1. Include the Header: Pull Duff's branch and `#include "payload_builder.h"` inside your `main.cpp`.
+2. Connect Wi-Fi: Set up the ESP-IDF Wi-Fi station code to connect the board to your phone's mobile hotspot.
+3. Fetch the Coordinates (HTTP GET):
+   - Write an `esp_http_client` GET request pointing to our Firebase RTDB (append `.json` to the database URL).
+   - Use ESP-IDF's `cJSON` library to parse the downloaded string and overwrite Duff's `active_slots` array in RAM.
+4. Broadcast the Payload (MQTT):
+   - Inside your FreeRTOS loop, call Duff's `generate_telemetry_payload()` function to get the formatted JSON string.
+   - Push that string out to a free public broker (like HiveMQ or Shiftr.io) using `esp_mqtt_client_publish`.
+
+Success Criteria for Sunday: We draw boxes on the HTML dashboard -> ESP32-S3 fetches them over Wi-Fi -> ESP32-S3 evaluates the local image slices -> MQTT broker receives the 1s and 0s.
