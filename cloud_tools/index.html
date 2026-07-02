@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SM Ecoland - Admin ROI Dashboard</title>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // ==========================================
+        // PASTE YOUR FIREBASE CONFIG HERE:
+        // ==========================================
+        const firebaseConfig = {
+          apiKey: "AIzaSyCpm2mE-7P21MvzHYuf5NhlDPleiMCIvPw",
+          authDomain: "smecoland-parking-mvp.firebaseapp.com",
+          databaseURL: "https://smecoland-parking-mvp-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "smecoland-parking-mvp",
+          storageBucket: "smecoland-parking-mvp.firebasestorage.app",
+          messagingSenderId: "850164226060",
+          appId: "1:850164226060:web:0522e14f6d005e35873629",
+          measurementId: "G-0G4BRJMZNZ"
+        };
+
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Canvas & State Setup
+        const canvas = document.getElementById('roiCanvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        const statusText = document.getElementById('status');
+        const slotList = document.getElementById('slotList');
+        
+        let rois = []; 
+        let isDrawing = false;
+        let startX, startY, currentX, currentY;
+        let scaleFactor = 1; // To track if we scaled the image to fit the screen
+
+        // Load the local image
+        img.src = "./images.jpg"; 
+        
+        img.onload = () => {
+            // Set canvas size (max width 800px to keep UI clean)
+            const maxWidth = 800;
+            if (img.width > maxWidth) {
+                scaleFactor = maxWidth / img.width;
+                canvas.width = maxWidth;
+                canvas.height = img.height * scaleFactor;
+            } else {
+                canvas.width = img.width;
+                canvas.height = img.height;
+            }
+            redraw();
+            statusText.innerText = "Ready. Draw boxes on the image.";
+            statusText.style.color = "#10b981"; // Green
+        };
+
+        function redraw() {
+            // 1. Clear and draw base image
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // 2. Draw confirmed ROIs
+            ctx.lineWidth = 2;
+            rois.forEach((roi, index) => {
+                // Scale coordinates back down for display
+                let dispX = roi.x * scaleFactor;
+                let dispY = roi.y * scaleFactor;
+                let dispW = roi.w * scaleFactor;
+                let dispH = roi.h * scaleFactor;
+
+                ctx.strokeStyle = "#ef4444"; // Red
+                ctx.fillStyle = "rgba(239, 68, 68, 0.2)"; // Transparent red fill
+                
+                ctx.fillRect(dispX, dispY, dispW, dispH);
+                ctx.strokeRect(dispX, dispY, dispW, dispH);
+                
+                ctx.fillStyle = "white";
+                ctx.font = "bold 14px Arial";
+                ctx.fillText(`Slot ${index + 1}`, dispX + 5, dispY + 18);
+            });
+
+            // 3. Draw temporary box while dragging
+            if (isDrawing) {
+                ctx.strokeStyle = "#3b82f6"; // Blue
+                ctx.setLineDash([5, 5]); // Dashed line for temporary box
+                ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+                ctx.setLineDash([]); // Reset dash
+            }
+        }
+
+        function updateSlotList() {
+            if (rois.length === 0) {
+                slotList.innerHTML = "<li>No slots mapped yet.</li>";
+                return;
+            }
+            slotList.innerHTML = "";
+            rois.forEach((roi, index) => {
+                slotList.innerHTML += `<li><strong>Slot ${index + 1}:</strong> w:${roi.w}, h:${roi.h}</li>`;
+            });
+        }
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            startX = e.offsetX;
+            startY = e.offsetY;
+            currentX = startX;
+            currentY = startY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            currentX = e.offsetX;
+            currentY = e.offsetY;
+            redraw(); // Redraw constantly to show the box expanding
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            // Calculate final width and height
+            let w = Math.abs(currentX - startX);
+            let h = Math.abs(currentY - startY);
+            let x = Math.min(startX, currentX);
+            let y = Math.min(startY, currentY);
+
+            // Only save if the box is actually big enough (prevents accidental clicks)
+            if (w > 10 && h > 10) {
+                rois.push({
+                    id: rois.length + 1,
+                    x: Math.round(x / scaleFactor), // Scale back up to TRUE image size for the AI
+                    y: Math.round(y / scaleFactor),
+                    w: Math.round(w / scaleFactor),
+                    h: Math.round(h / scaleFactor)
+                });
+            }
+            redraw();
+            updateSlotList();
+            statusText.innerText = `Mapped ${rois.length} slots. Unsynced changes.`;
+            statusText.style.color = "#f59e0b"; // Warning Orange
+        });
+
+        // Sync to Firebase Button
+        document.getElementById('syncBtn').addEventListener('click', () => {
+            statusText.innerText = "Syncing to Firebase...";
+            statusText.style.color = "#3b82f6";
+
+            set(ref(db, 'roi_config'), {
+                active_slots_count: rois.length,
+                slots: rois
+            }).then(() => {
+                statusText.innerText = "✓ Sync Complete! ESP32-S3 can fetch.";
+                statusText.style.color = "#10b981";
+            }).catch((error) => {
+                statusText.innerText = "Error: " + error;
+                statusText.style.color = "#ef4444";
+            });
+        });
+
+        // Clear Button
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            rois = [];
+            redraw();
+            updateSlotList();
+            statusText.innerText = "Cleared. 0 slots mapped.";
+            statusText.style.color = "#6b7280";
+        });
+    </script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f3f4f6; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: #1f2937; margin: 0 0 5px 0; }
+        .header p { color: #6b7280; margin: 0; }
+
+        .dashboard-container { display: flex; gap: 20px; max-width: 1200px; width: 100%; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+        
+        .control-panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
+        .canvas-container { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        canvas { border: 1px solid #d1d5db; border-radius: 8px; cursor: crosshair; display: block; }
+        
+        button { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .btn-sync { background-color: #3b82f6; color: white; }
+        .btn-sync:hover { background-color: #2563eb; }
+        .btn-clear { background-color: #fee2e2; color: #ef4444; }
+        .btn-clear:hover { background-color: #fecaca; }
+
+        .status-box { margin-top: 15px; padding: 10px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb; font-weight: 600; text-align: center; font-size: 14px; }
+        
+        .slot-list-container { margin-top: 20px; }
+        .slot-list-container h3 { margin: 0 0 10px 0; font-size: 14px; color: #4b5563; text-transform: uppercase; }
+        ul { list-style-type: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
+        ul li { background: #f3f4f6; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 13px; color: #374151; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SM Ecoland Edge Diagnostics</h1>
+        <p>Remote Region of Interest (ROI) Calibration Tool</p>
+    </div>
+
+    <div class="dashboard-container">
+        <div class="control-panel">
+            <button id="syncBtn" class="btn-sync">⬆ Sync to Edge Node</button>
+            <button id="clearBtn" class="btn-clear">🗑 Clear All Boxes</button>
+            
+            <div id="status" class="status-box">Loading image...</div>
+
+            <div class="slot-list-container">
+                <h3>Current active slots</h3>
+                <ul id="slotList">
+                    <li>No slots mapped yet.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="roiCanvas"></canvas>
+        </div>
+    </div>
+
+</body>
+</html>
